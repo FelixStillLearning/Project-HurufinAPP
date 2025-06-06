@@ -1,0 +1,129 @@
+STRUKTUR DAN ALUR PEMROSESAN MODEL PENGENALAN ALFABET
+========================================================
+
+OVERVIEW:
+---------
+Saat ini, semua pemrosesan model ML dilakukan dalam satu fungsi `load_ml_model()`.
+Kita akan memecahnya menjadi beberapa tahap terpisah seperti pada OCR processing.
+
+PERBANDINGAN DENGAN OCR SAAT INI:
+---------------------------------
+OCR Processing (Sudah Ada):
+1. btn_input         -> load_image()                    # Memuat gambar
+2. btn_step1         -> apply_preprocessing()           # Pra-pemrosesan dasar
+3. btn_step2         -> apply_morphological_operations() # Operasi morfologi
+4. btn_recognition   -> perform_ocr()                   # Pengenalan OCR
+
+USULAN STRUKTUR ML MODEL PROCESSING:
+------------------------------------
+ML Model Processing (Baru):
+1. btn_ml_step1      -> apply_ml_preprocessing()        # Pra-pemrosesan khusus ML
+2. btn_ml_step2      -> perform_character_segmentation() # Segmentasi karakter
+3. btn_ml_step3      -> load_and_prepare_ml_model()     # Load model & persiapan
+4. btn_ml_recognition -> perform_ml_character_recognition() # Pengenalan karakter ML
+
+DETAIL SETIAP TAHAP:
+-------------------
+
+1. TAHAP 1 - apply_ml_preprocessing():
+   - Input: Gambar asli atau hasil preprocessing OCR
+   - Proses: 
+     * Konversi ke grayscale
+     * Gaussian blur
+     * Median filter
+     * Otsu thresholding
+     * Morphological operations (opening, closing)
+     * Erosi-dilasi cleanup
+   - Output: Gambar biner yang siap untuk segmentasi
+   - Display: Tampilkan hasil di widget terpisah
+
+2. TAHAP 2 - perform_character_segmentation():
+   - Input: Gambar hasil pra-pemrosesan ML
+   - Proses:
+     * Deteksi kontur
+     * Filtering berdasarkan area dan aspect ratio
+     * Sorting bounding boxes dari kiri ke kanan
+     * Fallback segmentation jika diperlukan
+   - Output: List bounding boxes karakter
+   - Display: Gambar dengan overlay bounding boxes
+
+3. TAHAP 3 - load_and_prepare_ml_model():
+   - Input: -
+   - Proses:
+     * Load model classifier
+     * Load feature extractor config
+     * Validasi model
+     * Persiapan parameter prediksi
+   - Output: Model siap untuk prediksi
+   - Display: Status loading di console/status bar
+
+4. TAHAP 4 - perform_ml_character_recognition():
+   - Input: Gambar asli + bounding boxes + model
+   - Proses:
+     * Ekstraksi setiap karakter dari bounding box
+     * Preprocessing individual untuk setiap karakter
+     * Prediksi menggunakan ML model
+     * Confidence scoring
+     * Hasil aggregation
+   - Output: Teks hasil pengenalan + visualisasi
+   - Display: Gambar dengan label karakter + text browser
+
+STRUKTUR GUI BUTTONS:
+--------------------
+Tambahkan buttons baru di GUI:
+- btn_ml_step1      -> "Pra-pemrosesan ML"
+- btn_ml_step2      -> "Segmentasi Karakter" 
+- btn_ml_step3      -> "Muat Model ML"
+- btn_ml_recognition -> "Pengenalan ML"
+
+Atau bisa menggunakan menu/tab terpisah untuk ML processing.
+
+ALUR KERJA PENGGUNA:
+-------------------
+1. User memuat gambar (btn_input)
+2. Optional: User melakukan preprocessing OCR (btn_step1, btn_step2)
+3. User mulai ML processing:
+   a. Klik "Pra-pemrosesan ML" -> Lihat hasil preprocessing
+   b. Klik "Segmentasi Karakter" -> Lihat bounding boxes
+   c. Klik "Muat Model ML" -> Konfirmasi model loaded
+   d. Klik "Pengenalan ML" -> Lihat hasil final
+
+KEUNTUNGAN STRUKTUR TERBAGI:
+---------------------------
+1. User dapat melihat hasil setiap tahap
+2. Debugging lebih mudah
+3. User dapat mengulang tahap tertentu jika perlu
+4. Lebih intuitif dan educational
+5. Memungkinkan fine-tuning parameter per tahap
+6. Error handling lebih spesifik per tahap
+
+IMPLEMENTASI VARIABLE SHARING:
+------------------------------
+Gunakan instance variables untuk menyimpan hasil antar tahap:
+- self.ml_preprocessed_image
+- self.character_bboxes  
+- self.ml_model
+- self.ml_detections
+
+DISPLAY WIDGETS:
+---------------
+Bisa menggunakan widget yang sudah ada atau tambah widget baru:
+- display_ml_preprocessing -> untuk hasil pra-pemrosesan ML
+- display_segmentation -> untuk hasil segmentasi
+- display_ml_result -> untuk hasil final ML
+
+ERROR HANDLING:
+--------------
+Setiap tahap harus mengecek tahap sebelumnya:
+- Tahap 2 cek apakah tahap 1 sudah selesai
+- Tahap 3 bisa independent (cuma load model)
+- Tahap 4 cek apakah tahap 1, 2, dan 3 sudah selesai
+
+CONTOH IMPLEMENTASI CONNECTION:
+------------------------------
+def setup_ml_connections(self):
+    """Setup koneksi untuk ML processing buttons."""
+    self.btn_ml_step1.clicked.connect(self.apply_ml_preprocessing)
+    self.btn_ml_step2.clicked.connect(self.perform_character_segmentation)
+    self.btn_ml_step3.clicked.connect(self.load_and_prepare_ml_model)
+    self.btn_ml_recognition.clicked.connect(self.perform_ml_character_recognition)
