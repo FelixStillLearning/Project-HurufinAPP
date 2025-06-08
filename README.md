@@ -1,50 +1,70 @@
-# Hurufin OCR Application
+# HurufinApp - Advanced OCR Application
 
-Aplikasi OCR (Optical Character Recognition) profesional yang dibangun dengan Python dan PyQt5 untuk memproses teks dari gambar.
+![Python](https://img.shields.io/badge/python-v3.7+-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+![OpenCV](https://img.shields.io/badge/opencv-4.5+-red.svg)
+![PyQt5](https://img.shields.io/badge/PyQt5-5.15+-orange.svg)
+
+**Aplikasi OCR (Optical Character Recognition) profesional dengan GUI modern untuk ekstraksi teks dari gambar**
+
+---
 
 ## Fitur Unggulan
 
-- **Memuat Gambar**: Mendukung berbagai format gambar (PNG, JPG, JPEG, BMP, TIFF)
-- **Pra-pemrosesan Gambar**: 
-  - Konversi ke grayscale
-  - Filter median blur
-  - Peregangan kontras
-  - Thresholding Otsu
-  - Operasi morfologi
-- **Proses OCR**: Ekstraksi teks menggunakan Tesseract OCR
-- **Deteksi Bounding Box**: Feedback visual untuk karakter yang terdeteksi
-- **GUI Profesional**: Interface PyQt5 yang bersih dan intuitif
+### Preprocessing Canggih
+- **Multi-format Support**: PNG, JPG, JPEG, BMP, TIFF
+- **Intelligent Preprocessing**: Grayscale, median blur, contrast stretching
+- **Advanced Morphology**: Otsu thresholding, morphological operations
+- **Noise Reduction**: Adaptive filtering dan edge preservation
 
-## Struktur Proyek
+### Dual OCR Engine
+- **Tesseract OCR**: Industry-standard text recognition
+- **Custom ML Model**: Advanced character segmentation dan recognition
+- **Character-level Analysis**: Bounding box detection dengan confidence scoring
+- **Visual Feedback**: Real-time visualization dengan color-coded results
 
-```
+### Modern GUI Experience
+- **Professional Interface**: Clean dan intuitive PyQt5 design
+- **4-Stage ML Pipeline**: Step-by-step processing workflow
+- **Real-time Processing**: Live preview untuk setiap tahap
+- **Export Results**: Copy text atau save processed images
+
+---
+
+## Arsitektur Sistem
+
+```text
 HurufinApp/
-├── main.py                 # Entry point aplikasi utama
-├── requirements.txt        # Dependencies Python
-├── README.md              # File ini
-├── config/
-│   └── settings.py        # Konfigurasi aplikasi
+├── main.py                      # Application entry point
+├── requirements.txt            # Python dependencies
+├── README.md                   # Project documentation
 ├── data/
-│   ├── sample_images/     # Gambar sample untuk testing
-│   └── test_images/       # Gambar untuk testing
-├── docs/
-│   └── user_guide.md      # Dokumentasi pengguna
+│   ├── alphabet_recognition/      # ML training datasets
+│   ├── sample_images/            # Test images
+│   └── Hurufin/                  # App assets dan logos
+├── models/
+│   ├── alphabetic_classifier_model.pkl  # Trained ML model
+│   └── feature_extractor_config.pkl     # Feature extraction config
 ├── src/
 │   ├── gui/
-│   │   ├── __init__.py
-│   │   ├── GUI.ui         # File UI PyQt5
-│   │   └── main_window.py # Implementasi main window
+│   │   ├── GUI.ui                # PyQt5 interface design
+│   │   └── main_window.py        # Main application window
 │   ├── image_processing/
-│   │   ├── __init__.py
-│   │   ├── preprocessing.py # Fungsi pra-pemrosesan gambar
-│   │   └── ocr.py          # Fungsi pemrosesan OCR
+│   │   ├── preprocessing.py      # Image preprocessing pipeline
+│   │   └── ocr.py               # OCR processing engine
+│   ├── alphabetic_recognition/
+│   │   └── recognizer.py        # Custom ML character recognizer
 │   └── utils/
-│       ├── __init__.py
-│       ├── constants.py    # Konstanta aplikasi
-│       └── helpers.py      # Fungsi pembantu
+│       └── helpers.py           # Utility functions
+├── docs/
+│   ├── user_guide.md           # User documentation
+│   └── technical_docs/         # Technical documentation
 └── tests/
-    └── test_preprocessing.py # Unit tests
+    ├── test_ocr.py            # OCR engine tests
+    └── test_preprocessing.py  # Preprocessing tests
 ```
+
+## Instalasi
 
 ## Instalasi
 
@@ -53,119 +73,233 @@ HurufinApp/
 1. **Python 3.7+**: Pastikan Python sudah terinstall di sistem Anda
 2. **Tesseract OCR**: Download dan install dari [GitHub](https://github.com/UB-Mannheim/tesseract/wiki)
    - Path instalasi default: `C:\Program Files\Tesseract-OCR\`
-   - Tambahkan ke system PATH atau update path di `config/settings.py`
+   - Tambahkan ke system PATH atau update path di kode
 
-### Setup
+### Setup Cepat
 
-1. **Clone atau download** proyek ini ke mesin lokal Anda
+1. **Clone repository**:
+
+   ```bash
+   git clone https://github.com/yourusername/HurufinApp.git
+   cd HurufinApp
+   ```
 
 2. **Buat virtual environment** (direkomendasikan):
+
    ```bash
    python -m venv .venv
-   .venv\Scripts\activate  # Untuk Windows
+   .venv\Scripts\activate  # Windows
+   # atau
+   source .venv/bin/activate  # Linux/Mac
    ```
 
 3. **Install dependencies**:
+
    ```bash
    pip install -r requirements.txt
    ```
 
 4. **Verifikasi instalasi Tesseract**:
    - Cek apakah Tesseract terinstall di `C:\Program Files\Tesseract-OCR\tesseract.exe`
-   - Jika terinstall di tempat lain, update path di `config/settings.py`
+   - Jika tidak, update path di kode sesuai lokasi instalasi
 
 ## Cara Penggunaan
 
-### Menjalankan Aplikasi
+### Quick Start
 
 ```bash
 python main.py
 ```
 
-### Menggunakan Aplikasi
+### Workflow Lengkap
 
-1. **Load Gambar**: Klik tombol "Input" untuk memilih file gambar
-2. **Preprocessing**: Klik "Step 1" untuk menerapkan pra-pemrosesan gambar
-3. **Operasi Morfologi**: Klik "Step 2" untuk menerapkan thresholding dan operasi morfologi
-4. **OCR Recognition**: Klik "Recognition" untuk mengekstrak teks dari gambar yang sudah diproses
+#### Method 1: Tesseract OCR (Traditional)
+1. **Load Gambar**: Klik "Masukkan Gambar" untuk pilih file
+2. **Auto Process**: Klik "OCR Tesseract" di menu untuk proses otomatis
+3. **View Results**: Lihat hasil di panel "Ekstraksi Fitur"
 
-### Format Gambar yang Didukung
+#### Method 2: Custom ML Pipeline (Advanced)
+1. **Load Gambar**: Klik "Masukkan Gambar"
+2. **Step 1**: Klik "Langkah 1" untuk preprocessing ML
+3. **Step 2**: Klik "Langkah 2" untuk segmentasi karakter
+4. **Step 3**: Load ML model (otomatis)
+5. **Recognition**: Klik "Recognition" untuk hasil akhir
 
-- PNG (.png)
-- JPEG (.jpg, .jpeg)
-- BMP (.bmp)
-- TIFF (.tiff)
-- GIF (.gif)
+### Format File Didukung
+
+- **Gambar**: PNG, JPG, JPEG, BMP, TIFF, GIF
+- **Output**: Plain text, dapat dicopy ke clipboard
+
+---
 
 ## Konfigurasi
 
-Edit `config/settings.py` untuk kustomisasi:
+### Tesseract Path Setup
 
-- **Path Tesseract**: Update `OCR_CONFIG['tesseract_path']`
-- **Parameter processing**: Modifikasi `PREPROCESSING_CONFIG`
-- **Pengaturan GUI**: Sesuaikan `GUI_CONFIG`
-- **Pengaturan bahasa**: Ubah `OCR_CONFIG['language']` untuk bahasa yang berbeda
+Jika Tesseract tidak terdeteksi otomatis, update path di:
+
+```python
+# src/image_processing/ocr.py
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+```
+
+### Parameter Tuning
+
+Edit parameter preprocessing di `src/image_processing/preprocessing.py`:
+
+```python
+# Contoh parameter yang bisa disesuaikan
+GAUSSIAN_KERNEL_SIZE = 3
+MEDIAN_KERNEL_SIZE = 3
+MORPHOLOGICAL_KERNEL = (2, 2)
+```
+
+---
 
 ## Development
 
-### Arsitektur Proyek
-
-Aplikasi ini mengikuti arsitektur modular:
-
-- **GUI Layer** (`src/gui/`): Komponen interface PyQt5
-- **Processing Layer** (`src/image_processing/`): Logic inti untuk pemrosesan gambar dan OCR
-- **Utilities** (`src/utils/`): Fungsi pembantu dan konstanta
-- **Configuration** (`config/`): Pengaturan dan parameter aplikasi
-
 ### Menambahkan Fitur Baru
 
-1. **Image Processing**: Tambahkan method baru ke `src/image_processing/preprocessing.py`
-2. **Fitur OCR**: Extend `src/image_processing/ocr.py`
-3. **Komponen GUI**: Modifikasi `src/gui/main_window.py` dan `GUI.ui`
-4. **Konfigurasi**: Update `config/settings.py` untuk parameter baru
+1. **Image Processing**: Extend `src/image_processing/preprocessing.py`
+2. **OCR Engine**: Modify `src/image_processing/ocr.py`
+3. **GUI Components**: Update `src/gui/main_window.py`
+4. **ML Models**: Add to `src/alphabetic_recognition/`
 
 ### Testing
 
-Jalankan tests menggunakan:
 ```bash
+# Run all tests
 python -m pytest tests/
+
+# Run specific test
+python -m pytest tests/test_preprocessing.py -v
+
+# Run with coverage
+python -m pytest tests/ --cov=src --cov-report=html
 ```
+
+### Code Quality
+
+```bash
+# Linting
+flake8 src/
+pylint src/
+
+# Formatting
+black src/
+isort src/
+```
+
+---
 
 ## Troubleshooting
 
-### Masalah Umum
+### Issues Umum
 
-1. **"ModuleNotFoundError: No module named 'pytesseract'"**
-   - Install pytesseract: `pip install pytesseract`
+#### TesseractNotFoundError
+```bash
+# Solusi 1: Install Tesseract
+# Windows: Download dari UB-Mannheim
+# Linux: sudo apt-get install tesseract-ocr
+# Mac: brew install tesseract
 
-2. **"TesseractNotFoundError"**
-   - Install Tesseract OCR
-   - Update path di `config/settings.py`
+# Solusi 2: Set Path Manual
+export TESSDATA_PREFIX=/usr/share/tesseract-ocr/4.00/tessdata/
+```
 
-3. **"Failed to load image"**
-   - Cek apakah format gambar didukung
-   - Pastikan file gambar tidak corrupt
+#### ModuleNotFoundError
+```bash
+# Install missing modules
+pip install -r requirements.txt --upgrade
 
-4. **Hasil OCR Kurang Bagus**
-   - Coba parameter preprocessing yang berbeda
-   - Pastikan gambar memiliki kontras dan resolusi yang baik
-   - Pertimbangkan menggunakan model bahasa Tesseract yang berbeda
+# Force reinstall
+pip install --force-reinstall opencv-python PyQt5
+```
+
+#### Poor OCR Results
+- **Preprocessing**: Sesuaikan parameter blur dan threshold
+- **Image Quality**: Gunakan gambar dengan resolusi minimal 300 DPI
+- **Language**: Set bahasa Tesseract sesuai konten
+- **Character Training**: Retrain custom ML model dengan dataset lebih besar
+
+### Performance Tips
+
+1. **Memory Optimization**: Gunakan batch processing untuk gambar besar
+2. **Speed**: Aktifkan GPU acceleration untuk OpenCV (jika tersedia)
+3. **Accuracy**: Combine hasil Tesseract + Custom ML untuk akurasi terbaik
+
+---
 
 ## Kontribusi
 
-1. Fork repository ini
-2. Buat feature branch
-3. Buat perubahan Anda
-4. Tambahkan tests untuk fungsionalitas baru
-5. Submit pull request
+### Cara Berkontribusi
+
+1. **Fork** repository ini
+2. **Create feature branch**: `git checkout -b feature/amazing-feature`
+3. **Commit changes**: `git commit -m 'Add amazing feature'`
+4. **Push branch**: `git push origin feature/amazing-feature`
+5. **Open Pull Request**
+
+### Development Guidelines
+
+- Follow PEP 8 style guide
+- Add unit tests untuk fitur baru
+- Update dokumentasi sesuai perubahan
+- Test di multiple Python versions (3.7, 3.8, 3.9+)
+
+### Areas for Contribution
+
+- [ ] **Language Support**: Tambah bahasa selain Indonesia/English
+- [ ] **ML Models**: Improve character recognition accuracy
+- [ ] **GUI Enhancement**: Modern dark theme, better UX
+- [ ] **Performance**: GPU acceleration, parallel processing
+- [ ] **Documentation**: Video tutorials, API docs
+
+---
 
 ## Lisensi
 
-Proyek ini adalah open source dan tersedia di bawah [MIT License](LICENSE).
+Proyek ini dilisensikan di bawah **MIT License** - lihat file [LICENSE](LICENSE) untuk detail.
 
-## Ucapan Terima Kasih
+```text
+MIT License - Copyright (c) 2024 HurufinApp
+Permission is hereby granted, free of charge, to any person obtaining a copy...
+```
 
-- **Tesseract OCR**: Engine OCR dari Google
-- **OpenCV**: Library computer vision
-- **PyQt5**: Framework GUI
-- **NumPy**: Library komputasi numerik
+---
+
+## Acknowledgments
+
+### Core Technologies
+- **[Tesseract OCR](https://github.com/tesseract-ocr/tesseract)** - Google's OCR engine
+- **[OpenCV](https://opencv.org/)** - Computer vision library
+- **[PyQt5](https://www.riverbankcomputing.com/software/pyqt/)** - GUI framework
+- **[NumPy](https://numpy.org/)** - Numerical computing
+- **[scikit-learn](https://scikit-learn.org/)** - Machine learning toolkit
+
+### Contributors
+- **Development Team** - Initial work dan maintenance
+- **Community** - Bug reports, feature requests, dan improvements
+
+---
+
+## Roadmap
+
+### Version 2.0 (Coming Soon)
+- [ ] **Real-time OCR** - Webcam integration
+- [ ] **Batch Processing** - Multiple file support
+- [ ] **Cloud Integration** - Google Cloud Vision API
+- [ ] **Mobile App** - Android/iOS companion
+- [ ] **REST API** - Web service integration
+
+### Long-term Goals
+- [ ] **Multi-language Support** - 20+ languages
+- [ ] **Deep Learning** - BERT/Transformer models
+- [ ] **Document Analysis** - Layout detection, table extraction
+- [ ] **Commercial Features** - Enterprise deployment options
+
+---
+
+**⭐ Star this repository if you find it helpful!**
+
+**📧 Questions? Open an [issue](https://github.com/yourusername/HurufinApp/issues) or contact us!**
