@@ -16,7 +16,6 @@ import os
 import warnings
 import time
 import threading
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from functools import lru_cache
 import multiprocessing as mp
 
@@ -41,7 +40,7 @@ from .config import (
 class AlphabeticRecognizer:
     """
     Enhanced alphabetic recognizer with centralized configuration, advanced performance optimization,
-    and comprehensive error handling. Supports multiprocessing, feature caching, and batch processing.
+    and comprehensive error handling. Supports feature caching and batch processing.
     """
     
     def __init__(self, model_path: Optional[str] = None, config_validation: bool = True):
@@ -76,9 +75,6 @@ class AlphabeticRecognizer:
         # Performance optimization
         self.feature_cache = {}
         self.max_cache_size = FEATURE_CACHE_SIZE
-        self.use_multiprocessing = USE_MULTIPROCESSING and mp.cpu_count() > 1
-        self.max_workers = min(MAX_WORKERS, mp.cpu_count())
-        self.batch_size = BATCH_SIZE
         
         # Thread safety
         self._lock = threading.Lock()
@@ -453,94 +449,6 @@ class AlphabeticRecognizer:
             ])
             return np.zeros(int(fallback_size), dtype=np.float32)
     
-    def _extract_geometric_features(self, binary_image: np.ndarray) -> List[float]:
-        """Extract geometric features from binary character image."""
-        try:
-            contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            if not contours:
-                return [0.0, 0.0, 0.0, 0.0, 0.0]
-            
-            largest_contour = max(contours, key=cv2.contourArea)
-            x, y, w, h = cv2.boundingRect(largest_contour)
-            
-            # Aspect ratio
-            aspect_ratio = float(w) / h if h > 0 else 0.0
-            
-            # Area ratios
-            char_area = cv2.contourArea(largest_contour)
-            bbox_area = w * h
-            area_ratio = char_area / bbox_area if bbox_area > 0 else 0.0
-            
-            # Perimeter area ratio
-            perimeter = cv2.arcLength(largest_contour, True)
-            perimeter_area_ratio = perimeter / char_area if char_area > 0 else 0.0
-            
-            # Solidity
-            hull = cv2.convexHull(largest_contour)
-            hull_area = cv2.contourArea(hull)
-            solidity = char_area / hull_area if hull_area > 0 else 0.0
-            
-            # Extent
-            extent = char_area / bbox_area if bbox_area > 0 else 0.0
-            
-            return [aspect_ratio, area_ratio, perimeter_area_ratio, solidity, extent]
-        except Exception:
-            return [0.0, 0.0, 0.0, 0.0, 0.0]
-    
-    def _extract_projection_features(self, binary_image: np.ndarray) -> List[float]:
-        """Extract projection features from binary character image."""
-        try:
-            h_projection = np.sum(binary_image, axis=1)
-            v_projection = np.sum(binary_image, axis=0)
-            
-            return [
-                float(np.mean(h_projection)), float(np.std(h_projection)), float(np.max(h_projection)),
-                float(np.mean(v_projection)), float(np.std(v_projection)), float(np.max(v_projection))
-            ]
-        except Exception:
-            return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    
-    def _extract_zoning_features(self, binary_image: np.ndarray, zones: int = 4) -> List[float]:
-        """Extract zoning features from binary character image."""
-        try:
-            features = []
-            zone_h, zone_w = binary_image.shape[0] // zones, binary_image.shape[1] // zones
-            
-            for i in range(zones):
-                for j in range(zones):
-                    zone = binary_image[i*zone_h:(i+1)*zone_h, j*zone_w:(j+1)*zone_w]
-                    zone_density = np.sum(zone) / (zone_h * zone_w * 255) if zone.size > 0 else 0.0
-                    features.append(float(zone_density))
-            
-            return features
-        except Exception:
-            return [0.0] * (zones * zones)
-    
-    def _extract_crossing_features(self, binary_image: np.ndarray) -> List[float]:
-        """Extract crossing features from binary character image."""
-        try:
-            h_crossings = 0
-            for row in binary_image:
-                for i in range(len(row) - 1):
-                    if row[i] != row[i + 1]:
-                        h_crossings += 1
-            
-            v_crossings = 0
-            for col in range(binary_image.shape[1]):
-                column = binary_image[:, col]
-                for i in range(len(column) - 1):
-                    if column[i] != column[i + 1]:
-                        v_crossings += 1
-            
-            return [float(h_crossings), float(v_crossings)]
-        except Exception:
-            return [0.0, 0.0]
-    
-    def _get_default_features(self) -> np.ndarray:
-        """Return default feature vector in case of extraction failure."""
-        default_size = self.feature_size if self.feature_size else 100
-        return np.zeros(default_size, dtype=np.float32)
-    
     def predict_character(self, image_roi: np.ndarray, 
                          return_probabilities: bool = False) -> Tuple[str, float]:
         """
@@ -725,129 +633,6 @@ class AlphabeticRecognizer:
         
         return results
     
-    def process_image(self, image: np.ndarray, 
-                     detection_results: Optional[List[Dict]] = None) -> Tuple[np.ndarray, List[Dict]]:
-        """
-        Enhanced image processing with optional detection integration.
-        
-        Args:
-            image: Input image
-            detection_results: Optional pre-computed detection results
-            
-        Returns:
-            Tuple (annotated_image, recognition_results)
-        """
-        if image is None or image.size == 0:
-            raise ValueError("Invalid input image")
-        
-        # Use provided detection results or perform basic detection
-        if detection_results is None:
-            # Basic character detection (simplified)
-            bboxes = self._detect_characters_simple(image)
-        else:
-            bboxes = [result['bbox'] for result in detection_results]
-        
-        # Recognize characters
-        recognition_results = self.predict_characters_from_image(image, bboxes)
-        
-        # Create annotated image
-        annotated_image = self._annotate_image(image.copy(), recognition_results)
-        
-        return annotated_image, recognition_results
-    
-    def _detect_characters_simple(self, image: np.ndarray) -> List[Tuple[int, int, int, int]]:
-        """Simple character detection for standalone usage."""
-        try:
-            # Convert to grayscale
-            if len(image.shape) == 3:
-                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            else:
-                gray = image.copy()
-            
-            # Threshold
-            _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-            
-            # Find contours
-            contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            
-            bboxes = []
-            for contour in contours:
-                area = cv2.contourArea(contour)
-                if area > 100:  # Filter small contours
-                    x, y, w, h = cv2.boundingRect(contour)
-                    bboxes.append((x, y, w, h))
-            
-            return bboxes
-            
-        except Exception as e:
-            print(f"Error in simple character detection: {e}")
-            return []
-    
-    def _annotate_image(self, image: np.ndarray, results: List[Dict]) -> np.ndarray:
-        """Annotate image with recognition results."""
-        try:
-            for result in results:
-                bbox = result['bbox']
-                char = result['character']
-                conf = result['confidence']
-                status = result['status']
-                
-                x, y, w, h = bbox
-                
-                # Choose color based on confidence
-                if conf >= HIGH_CONFIDENCE_THRESHOLD:
-                    color = (0, 255, 0)  # Green for high confidence
-                elif conf >= MIN_CONFIDENCE_THRESHOLD:
-                    color = (0, 255, 255)  # Yellow for medium confidence
-                else:
-                    color = (0, 0, 255)  # Red for low confidence
-                
-                # Draw bounding box
-                cv2.rectangle(image, (x, y), (x+w, y+h), color, 2)
-                
-                # Draw character and confidence
-                label = f"{char} ({conf:.2f})"
-                label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0]
-                
-                # Draw background for text
-                cv2.rectangle(image, (x, y-20), (x+label_size[0], y), color, -1)
-                
-                # Draw text
-                cv2.putText(image, label, (x, y-5), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
-            
-            return image
-            
-        except Exception as e:
-            print(f"Error annotating image: {e}")
-            return image
-    
-    def get_performance_metrics(self) -> Dict[str, Any]:
-        """Get comprehensive performance metrics."""
-        metrics = self._log_performance_metrics()
-        
-        # Add advanced metrics
-        cache_hit_rate = (self.cache_hits / (self.cache_hits + self.cache_misses)) if (self.cache_hits + self.cache_misses) > 0 else 0
-        avg_processing_time = (self.total_processing_time / self.prediction_count) if self.prediction_count > 0 else 0
-        
-        metrics.update({
-            'model_loaded': self.is_loaded,
-            'model_path': self.model_path,
-            'feature_size': self.feature_size,
-            'num_classes': len(self.classes) if self.classes else 0,
-            'cache_hits': self.cache_hits,
-            'cache_misses': self.cache_misses,
-            'cache_hit_rate': round(cache_hit_rate, 3),
-            'cache_size': len(self.feature_cache),
-            'max_cache_size': self.max_cache_size,
-            'avg_processing_time_ms': round(avg_processing_time * 1000, 2),
-            'total_processing_time_s': round(self.total_processing_time, 2),
-            'multiprocessing_enabled': self.use_multiprocessing,
-            'max_workers': self.max_workers,
-            'batch_size': self.batch_size
-        })
-        return metrics
-    
     def clear_cache(self) -> None:
         """Clear feature cache to free memory."""
         with self._lock:
@@ -855,28 +640,12 @@ class AlphabeticRecognizer:
             self.cache_hits = 0
             self.cache_misses = 0
     
-    def optimize_cache_size(self, new_size: int) -> None:
-        """
-        Optimize cache size based on usage patterns.
-        
-        Args:
-            new_size: New maximum cache size
-        """
-        with self._lock:
-            self.max_cache_size = new_size
-            # Trim cache if necessary
-            while len(self.feature_cache) > self.max_cache_size:
-                oldest_key = next(iter(self.feature_cache))
-                del self.feature_cache[oldest_key]
-    
     def reset_performance_tracking(self) -> None:
         """Reset all performance tracking counters."""
         self.prediction_count = 0
         self.total_confidence = 0.0
         self.total_processing_time = 0.0
         self.clear_cache()
-
-    # ...existing methods...
     
     def _cache_feature_vector(self, image_hash: str, features: np.ndarray) -> None:
         """
@@ -947,68 +716,6 @@ class AlphabeticRecognizer:
             _signedGradient=HOG_PARAMS['_signedGradient']
         )
 
-    def predict_characters_batch_optimized(self, images: List[np.ndarray], 
-                                          bboxes: Optional[List[List[Tuple[int, int, int, int]]]] = None,
-                                          min_confidence: Optional[float] = None,
-                                          use_multiprocessing: Optional[bool] = None) -> List[List[Dict[str, Any]]]:
-        """
-        Optimized batch character prediction with multiprocessing support.
-        
-        Args:
-            images: List of images to process
-            bboxes: Optional list of bounding boxes for each image
-            min_confidence: Minimum confidence threshold
-            use_multiprocessing: Override multiprocessing setting
-            
-        Returns:
-            List of prediction results for each image
-        """
-        if not self.is_loaded:
-            return [[{'error': 'Model not loaded', 'character': DEFAULT_CHARACTER, 'confidence': 0.0}] 
-                   for _ in images]
-        
-        start_time = time.time()
-        use_mp = use_multiprocessing if use_multiprocessing is not None else self.use_multiprocessing
-        
-        if use_mp and len(images) > 1:
-            # Use multiprocessing for large batches
-            return self._predict_batch_multiprocessing(images, bboxes, min_confidence)
-        else:
-            # Use sequential processing for small batches
-            return self._predict_batch_sequential(images, bboxes, min_confidence)
-    
-    def _predict_batch_sequential(self, images: List[np.ndarray], 
-                                 bboxes: Optional[List[List[Tuple[int, int, int, int]]]], 
-                                 min_confidence: Optional[float]) -> List[List[Dict[str, Any]]]:
-        """Sequential batch prediction."""
-        results = []
-        for i, image in enumerate(images):
-            if bboxes and i < len(bboxes):
-                image_results = self.predict_characters_from_image(image, bboxes[i], min_confidence)
-            else:
-                image_results = self.predict_characters_from_image(image, [], min_confidence)
-            results.append(image_results)
-        return results
-    
-    def _predict_batch_multiprocessing(self, images: List[np.ndarray], 
-                                      bboxes: Optional[List[List[Tuple[int, int, int, int]]]], 
-                                      min_confidence: Optional[float]) -> List[List[Dict[str, Any]]]:
-        """Multiprocessing batch prediction."""
-        try:
-            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                futures = []
-                for i, image in enumerate(images):
-                    if bboxes and i < len(bboxes):
-                        future = executor.submit(self.predict_characters_from_image, image, bboxes[i], min_confidence)
-                    else:
-                        future = executor.submit(self.predict_characters_from_image, image, [], min_confidence)
-                    futures.append(future)
-                
-                results = [future.result() for future in futures]
-                return results
-        except Exception as e:
-            print(f"Multiprocessing failed, falling back to sequential: {e}")
-            return self._predict_batch_sequential(images, bboxes, min_confidence)
 
 # Global instance untuk digunakan dalam aplikasi
 _recognizer_instance = None
@@ -1050,7 +757,9 @@ def predict_characters(image: np.ndarray, bboxes: List[Tuple[int, int, int, int]
         List of (character, confidence) tuples
     """
     recognizer = get_alphabetic_recognizer()
-    return recognizer.predict_characters_from_image(image, bboxes)
+    results = recognizer.predict_characters_from_image(image, bboxes)
+    # Convert to simple tuple format for backward compatibility
+    return [(result['character'], result['confidence']) for result in results]
 
 # Test function
 if __name__ == "__main__":
@@ -1065,5 +774,5 @@ if __name__ == "__main__":
     
     # Get model info
     recognizer = get_alphabetic_recognizer()
-    info = recognizer.get_model_info()
-    print(f"Model info: {info}")
+    print(f"Model loaded: {recognizer.is_loaded}")
+    print(f"Model path: {recognizer.model_path}")

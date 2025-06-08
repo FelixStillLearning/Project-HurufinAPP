@@ -56,6 +56,7 @@ class HurufinMainWindow(QMainWindow):
         self.btn_step3.clicked.connect(self.load_and_prepare_ml_model)
         self.btn_recognition.clicked.connect(self.perform_ml_character_recognition)
         self.btn_reset.clicked.connect(self.reset_ml_processing)
+        self.actionOCR_Tesseract.triggered.connect(self.perform_ocr_tesseract)
     
     def load_image(self):
         """Muat file gambar menggunakan file dialog."""
@@ -74,335 +75,228 @@ class HurufinMainWindow(QMainWindow):
                 print(f"Gambar berhasil dimuat: {os.path.basename(image_path)}")
             else:
                 QMessageBox.warning(self, "Kesalahan", "Gagal memuat gambar!")
-    
-    def apply_preprocessing(self):
-        """Terapkan pipeline pra-pemrosesan (grayscale, blur, contrast stretching)."""
-        if self.current_image is None:
-            QMessageBox.warning(self, "Peringatan", "Silakan muat gambar terlebih dahulu!")
-            return
-        
-        try:
-            # Terapkan pipeline pra-pemrosesan
-            processed_image = self.preprocessor.preprocess_pipeline()
-            
-            if processed_image is not None:
-                self.display_image(processed_image, self.display_preprocessing)
-                print("Pra-pemrosesan berhasil diselesaikan")
-            else:
-                QMessageBox.warning(self, "Kesalahan", "Pra-pemrosesan gagal!")
-                
-        except Exception as e:
-            QMessageBox.critical(self, "Kesalahan", f"Error pra-pemrosesan: {str(e)}")
-    def apply_morphological_operations(self):
-        """Terapkan thresholding Otsu dan morphological opening."""
-        if self.current_image is None:
-            QMessageBox.warning(self, "Peringatan", "Silakan muat gambar terlebih dahulu!")
-            return
-        
-        try:
-            # Terapkan thresholding Otsu
-            binary_image = self.preprocessor.otsu_threshold()
-            
-            # Terapkan morphological opening
-            final_image = self.preprocessor.morphological_opening()
-            if final_image is not None:
-                self.display_image(final_image, self.display_ekstraksi)
-                print("Operasi morfologi berhasil diselesaikan")
-            else:
-                QMessageBox.warning(self, "Kesalahan", "Operasi morfologi gagal!")
-                
-        except Exception as e:
-            QMessageBox.critical(self, "Kesalahan", f"Error operasi morfologi: {str(e)}")
-    
-    def perform_ocr(self):
-        """Lakukan OCR pada gambar yang telah diproses."""
-        processed_image = self.preprocessor.get_processed_image()
-        if processed_image is None:
-            QMessageBox.warning(self, "Peringatan", "Silakan proses gambar terlebih dahulu!")
-            return
-        
-        try:
-            # Lakukan OCR
-            result = self.ocr_processor.process_image(processed_image, draw_boxes=True)
-            
-            # Tampilkan hasil
-            extracted_text = result['text']
-            
-            if 'image_with_boxes' in result:
-                self.display_image(result['image_with_boxes'], self.display_ekstraksi)
-            
-            # Perbarui text browser
-            if hasattr(self, 'textBrowser'):
-                self.textBrowser.setText(extracted_text)
-            print("Hasil OCR:")
-            print("=" * 50)
-            print(f"Teks yang diekstrak: {extracted_text}")
-            print(f"Jumlah karakter yang terdeteksi: {len(result['boxes'])}")
-            print("=" * 50)        
-        except Exception as e:
-            QMessageBox.critical(self, "Kesalahan", f"Error OCR: {str(e)}")
 
-    def load_ml_model(self):
-        """Memuat dan menggunakan model pengenalan alfabet untuk deteksi karakter dengan pra-pemrosesan konsisten pelatihan."""
-        original_image = self.preprocessor.get_original_image()
-        processed_image = self.preprocessor.get_processed_image()
-        
-        if original_image is None:
-            QtWidgets.QMessageBox.warning(self, "Peringatan", "Belum ada gambar yang dimuat untuk pengenalan alfabet")
-            return
-        
-        try:
-            # Impor modul yang dibutuhkan
-            import cv2
-            import numpy as np
-            import traceback
-            from alphabetic_recognition.recognizer import AlphabeticRecognizer
-            
-            print("Memulai pengenalan karakter alfabet...")
-            print("=" * 60)
-            
-            # Inisialisasi pengenal alfabet
-            recognizer = AlphabeticRecognizer()
-            if not recognizer.load_model():
-                QtWidgets.QMessageBox.critical(self, "Kesalahan", "Gagal memuat model pengenalan alfabet")
-                return
-            
-            print("✓ Model pengenalan alfabet berhasil dimuat")
-            
-            # Gunakan gambar yang telah diproses jika tersedia, jika tidak gunakan yang asli
-            working_image = processed_image if processed_image is not None else original_image
-            
-            # Terapkan pipeline pra-pemrosesan konsisten pelatihan untuk akurasi lebih baik
-            print("Menerapkan pra-pemrosesan konsisten pelatihan...")
-            preprocessed_for_segmentation = self._apply_training_preprocessing(working_image)
-            
-            # Lakukan segmentasi karakter untuk menemukan bounding box karakter
-            print("Melakukan segmentasi karakter...")
-            bboxes = self._segment_characters(preprocessed_for_segmentation)
-            
-            if not bboxes:
-                print("Segmentasi utama gagal, mencoba metode cadangan...")
-                # Coba segmentasi cadangan pada gambar asli
-                bboxes = self._segment_characters_fallback(original_image)
-            
-            print(f"Ditemukan {len(bboxes)} area karakter untuk pengenalan")
-            
-            # Prediksi karakter menggunakan pengenal alfabet
-            detections = []
-            if bboxes:
-                print("Melakukan pengenalan karakter...")
-                detections = recognizer.predict_characters_from_image(original_image, bboxes)
-                print(f"Pengenalan selesai untuk {len(detections)} karakter")
-            
-            # Buat visualisasi komprehensif
-            result_image = self._create_recognition_visualization(original_image, detections)
-            
-            # Tampilkan hasil
-            if detections:
-                # Tampilkan hasil di jendela terpisah
-                cv2.imshow("Hasil Pengenalan Alfabet", result_image)
-                cv2.waitKey(1)
-            
-                
-                # Perbarui text browser jika tersedia
-                recognized_text = ""
-                for detection in detections:
-                    char = detection.get('character', '?')
-                    if char != '?' and char.strip():
-                        recognized_text += char
-                
-                if hasattr(self, 'textBrowser') and recognized_text:
-                    self.textBrowser.setText(recognized_text)
-                
-                # Log hasil detail
-                print("=" * 60)
-                print("HASIL PENGENALAN ALFABET")
-                print("=" * 60)
-                
-                # Hitung tingkat kepercayaan
-                high_conf_count = 0
-                medium_conf_count = 0
-                low_conf_count = 0
-                
-                for i, detection in enumerate(detections):
-                    char = detection.get('character', '?')
-                    conf = detection.get('confidence', 0.0)
-                    status = detection.get('status', 'unknown')
-                    bbox = detection.get('bbox', None)
-                    
-                    # Hitung tingkat kepercayaan
-                    if status == 'high_confidence':
-                        high_conf_count += 1
-                    elif status == 'success':
-                        medium_conf_count += 1
-                    else:
-                        low_conf_count += 1
-                    
-                    bbox_str = f"({bbox[0]}, {bbox[1]}, {bbox[2]}, {bbox[3]})" if bbox else "N/A"
-                    print(f"[{i+1:2d}] Karakter: '{char}' | Kepercayaan: {conf:.3f} | Status: {status} | BBox: {bbox_str}")
-                
-                print("-" * 60)
-                print(f"Teks yang dikenali: '{recognized_text}'")
-                print(f"Total Karakter Terdeteksi: {len(detections)}")
-                print(f"Karakter Valid: {len([d for d in detections if d.get('character', '?') != '?'])}")
-                print(f"Kepercayaan Tinggi: {high_conf_count} | Kepercayaan Sedang: {medium_conf_count} | Kepercayaan Rendah: {low_conf_count}")
-                print("=" * 60)
-                
-                # Tampilkan pesan sukses
-                QtWidgets.QMessageBox.information(
-                    self, 
-                    "Pengenalan Selesai", 
-                    f"Berhasil mengenali {len(detections)} karakter.\nTeks yang dikenali: '{recognized_text}'"
-                )
-                
-            else:
-                # Tidak ada karakter terdeteksi - buat gambar umpan balik informatif
-                blank_image = np.ones((400, 600, 3), dtype=np.uint8) * 255
-                
-                # Tambahkan beberapa baris umpan balik
-                cv2.putText(blank_image, "Tidak ada karakter terdeteksi", 
-                           (50, 120), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
-                cv2.putText(blank_image, "Saran:", 
-                           (50, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 100, 200), 2)
-                cv2.putText(blank_image, "1. Periksa kualitas dan kontras gambar", 
-                           (70, 220), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 200), 1)
-                cv2.putText(blank_image, "2. Coba atur parameter pra-pemrosesan", 
-                           (70, 250), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 200), 1)
-                cv2.putText(blank_image, "3. Pastikan karakter terlihat jelas", 
-                           (70, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 200), 1)
-                cv2.putText(blank_image, "4. Periksa orientasi teks yang benar", 
-                           (70, 310), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 200), 1)
-                
-                # Tampilkan gambar umpan balik
-                cv2.imshow("Hasil Pengenalan Alfabet", blank_image)
-                cv2.waitKey(1)
-                
-                # Tampilkan di GUI
-                self.display_image(blank_image, self.display_ekstraksi)
-                
-                # Log informasi diagnostik
-                print("=" * 60)
-                print("PENGENALAN ALFABET: TIDAK ADA KARAKTER TERDETEKSI")
-                print("=" * 60)
-                print("Informasi Diagnostik:")
-                print(f"- Bentuk gambar asli: {original_image.shape}")
-                print(f"- Gambar hasil proses tersedia: {processed_image is not None}")
-                if processed_image is not None:
-                    print(f"- Bentuk gambar hasil proses: {processed_image.shape}")
-                print(f"- Bentuk gambar kerja: {working_image.shape}")
-                print(f"- Segmentasi menemukan: {len(bboxes)} area")
-                print("=" * 60)
-                
-                QtWidgets.QMessageBox.warning(
-                    self, 
-                    "Tidak Ada Karakter Terdeteksi", 
-                    "Tidak ada karakter yang terdeteksi pada gambar.\n\nSaran:\n"
-                    "• Periksa kualitas dan kontras gambar\n"
-                    "• Coba atur parameter pra-pemrosesan\n"
-                    "• Pastikan karakter terlihat jelas\n"
-                    "• Periksa orientasi teks yang benar"
-                )
-                
-        except ImportError as e:
-            error_msg = f"Gagal mengimpor modul pengenalan alfabet: {str(e)}"
-            QtWidgets.QMessageBox.critical(self, "Kesalahan Impor", error_msg)
-            print(f"Kesalahan Impor: {error_msg}")
-            
-        except Exception as e:
-            error_msg = f"Pengenalan alfabet gagal: {str(e)}"
-            QtWidgets.QMessageBox.critical(self, "Kesalahan", error_msg)
-            print(f"Kesalahan pada pengenalan alfabet: {str(e)}")            
-            import traceback
-            traceback.print_exc()    
     def _apply_training_preprocessing(self, image):
         """Terapkan pipeline pra-pemrosesan yang sama seperti saat pelatihan untuk konsistensi."""
         try:
-            import cv2
-            import numpy as np
-            import cv2
-            import numpy as np
-            
             print("Menerapkan pipeline pra-pemrosesan konsisten pelatihan...")
+            
+            # Set gambar pada preprocessor
+            self.preprocessor.set_image(image)
             
             # Konversi ke grayscale jika perlu
             if len(image.shape) == 3:
-                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                self.preprocessor.grayscale()
                 print("✓ Dikonversi ke grayscale")
-            else:
-                gray = image.copy()
             
             # Langkah 1: Gaussian blur untuk reduksi noise (sama seperti pelatihan)
-            blurred = cv2.GaussianBlur(gray, (3, 3), 1.0)
+            self.preprocessor.gaussian_blur(kernel_size=3, sigma=1.0)
             print("✓ Gaussian blur diterapkan")
             
             # Langkah 2: Median filter untuk penghilangan noise tambahan (sama seperti pelatihan)
-            denoised = cv2.medianBlur(blurred, 3)
+            self.preprocessor.median_blur(kernel_size=3)
             print("✓ Median filter diterapkan")
             
             # Langkah 3: Thresholding Otsu (sama seperti pelatihan)
-            _, binary = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            print(f"✓ Thresholding Otsu diterapkan (threshold: {_})")
+            self.preprocessor.otsu_threshold()
+            print("✓ Thresholding Otsu diterapkan")
             
             # Langkah 4: Operasi morfologi (sama seperti pelatihan)
             # Opening untuk menghilangkan noise kecil
-            kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
-            cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel_open)
+            self.preprocessor.morphological_opening(kernel_size=(2, 2))
             print("✓ Morphological opening diterapkan")
             
             # Closing untuk menghubungkan komponen yang berdekatan
-            kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-            cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel_close)
+            self.preprocessor.morphological_closing(kernel_size=(3, 3))
             print("✓ Morphological closing diterapkan")
             
             # Langkah 5: Pembersihan akhir dengan erosi-dilasi (konsistensi pelatihan)
-            kernel_clean = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (1, 1))
-            cleaned = cv2.erode(cleaned, kernel_clean, iterations=1)
-            cleaned = cv2.dilate(cleaned, kernel_clean, iterations=1)
+            self.preprocessor.morphological_erosion(kernel_size=(1, 1), iterations=1)
+            self.preprocessor.morphological_dilation(kernel_size=(1, 1), iterations=1)
             print("✓ Pembersihan akhir diterapkan")
             
             print("✓ Pra-pemrosesan konsisten pelatihan selesai")
-            return cleaned
+            return self.preprocessor.get_processed_image()
             
         except Exception as e:
             print(f"Kesalahan pada pra-pemrosesan pelatihan: {e}")
             # Kembalikan threshold biner sederhana sebagai cadangan
+            self.preprocessor.set_image(image)
             if len(image.shape) == 3:
-                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            else:
-                gray = image.copy()
-            _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
-            return binary    
+                self.preprocessor.grayscale()
+            
+            # Menggunakan binary dengan threshold manual
+            binary_img = self.preprocessor.binary(self.preprocessor.get_processed_image(), 127)
+            self.preprocessor.processed_image = binary_img
+            return self.preprocessor.get_processed_image()
+            
     def _segment_characters(self, binary_image):
         """Segmentasi karakter individual dari gambar yang telah dipra-pemrosesan."""
         try:
             import cv2
-            import cv2
+            import numpy as np
             
-            # Temukan kontur
-            contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            # Set gambar di preprocessor
+            self.preprocessor.set_image(binary_image)
             
-            bboxes = []
-            for contour in contours:
-                # Dapatkan bounding rectangle
-                x, y, w, h = cv2.boundingRect(contour)
+            # 1. Preprocessing tambahan untuk meningkatkan kualitas kontur
+            # Pastikan gambar adalah binary dengan foreground putih
+            if np.mean(self.preprocessor.get_processed_image()) > 127:
+                self.preprocessor.invert_binary()  # Invert jika background putih
+            
+            # Terapkan morphological closing untuk menghubungkan komponen karakter
+            self.preprocessor.morphological_closing(kernel_size=(3, 3))
+            
+            # Terapkan morphological opening untuk menghilangkan noise kecil
+            self.preprocessor.morphological_opening(kernel_size=(2, 2))
+            
+            # Simpan gambar yang telah diproses untuk thresholding
+            processed_img = self.preprocessor.get_processed_image()
+            
+            # Siapkan gambar dengan adaptive threshold manual
+            self.preprocessor.set_image(processed_img.copy())
+            self.preprocessor.adaptive_threshold(block_size=11, c=2)
+            adaptive_img = self.preprocessor.get_processed_image()
+            
+            # 2. Coba beberapa metode threshold untuk meningkatkan deteksi
+            methods = [
+                # Metode 1: Gunakan gambar yang sudah diproses
+                processed_img.copy(),
                 
-                # Filter berdasarkan ukuran dan rasio aspek (mirip konfigurasi pelatihan)
-                area = cv2.contourArea(contour)
-                aspect_ratio = w / h if h > 0 else 0
+                # Metode 2: Gunakan cv2 untuk threshold Otsu (tidak diimplementasikan secara manual)
+                cv2.threshold(processed_img, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1],
                 
-                # Terapkan kriteria filter
-                if (area >= 50 and  # MIN_CONTOUR_AREA
-                    8 <= w <= 200 and  # MIN/MAX_BBOX_WIDTH  
-                    12 <= h <= 200 and  # MIN/MAX_BBOX_HEIGHT
-                    0.1 <= aspect_ratio <= 4.0):  # MIN/MAX_ASPECT_RATIO
+                # Metode 3: Hasil dari adaptive threshold manual
+                adaptive_img
+            ]
+            
+            all_bboxes = []
+            
+            # 3. Iterasi melalui metode threshold dan gabungkan hasilnya
+            for method_img in methods:
+                # Temukan kontur
+                contours, _ = cv2.findContours(method_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                
+                # Filter dan proses kontur
+                for contour in contours:
+                    # Dapatkan bounding rectangle
+                    x, y, w, h = cv2.boundingRect(contour)
                     
-                    bboxes.append((x, y, w, h))
+                    # Hitung area dan rasio aspek
+                    area = cv2.contourArea(contour)
+                    aspect_ratio = w / h if h > 0 else 0
+                    
+                    # Hitung perimeter dan solidity
+                    perimeter = cv2.arcLength(contour, True)
+                    hull = cv2.convexHull(contour)
+                    hull_area = cv2.contourArea(hull) if len(hull) > 2 else area
+                    solidity = float(area) / hull_area if hull_area > 0 else 0
+                    
+                    # Hitung extent (rasio area kontur terhadap area bounding box)
+                    extent = float(area) / (w * h) if w * h > 0 else 0
+                    
+                    # Terapkan kriteria filter yang dioptimalkan
+                    if (area >= 30 and  # MIN_CONTOUR_AREA dari config.py
+                        8 <= w <= 200 and  # MIN/MAX_BBOX_WIDTH dari config.py
+                        12 <= h <= 200 and  # MIN/MAX_BBOX_HEIGHT dari config.py
+                        0.1 <= aspect_ratio <= 4.0 and  # MIN/MAX_ASPECT_RATIO dari config.py
+                        extent >= 0.2 and  # Minimal 20% area terisi
+                        solidity >= 0.3):  # Minimal 30% solidity untuk karakter valid
+                        
+                        # Tambahkan ke daftar bounding box
+                        all_bboxes.append((x, y, w, h))
             
-            # Urutkan bboxes dari kiri ke kanan untuk urutan baca yang benar
-            bboxes.sort(key=lambda bbox: bbox[0])
+            # 4. Gabungkan bounding box yang tumpang tindih
+            merged_bboxes = []
+            if all_bboxes:
+                # Urutkan berdasarkan posisi x
+                all_bboxes.sort(key=lambda bbox: bbox[0])
+                
+                # Fungsi untuk menghitung IoU (Intersection over Union)
+                def calculate_iou(box1, box2):
+                    x1, y1, w1, h1 = box1
+                    x2, y2, w2, h2 = box2
+                    
+                    # Hitung koordinat persegi panjang intersection
+                    x_left = max(x1, x2)
+                    y_top = max(y1, y2)
+                    x_right = min(x1 + w1, x2 + w2)
+                    y_bottom = min(y1 + h1, y2 + h2)
+                    
+                    if x_right < x_left or y_bottom < y_top:
+                        return 0.0  # Tidak ada overlap
+                    
+                    # Hitung area intersection dan union
+                    intersection_area = (x_right - x_left) * (y_bottom - y_top)
+                    box1_area = w1 * h1
+                    box2_area = w2 * h2
+                    union_area = box1_area + box2_area - intersection_area
+                    
+                    return intersection_area / union_area if union_area > 0 else 0.0
+                
+                # Gabungkan bounding box yang tumpang tindih
+                current_box = all_bboxes[0]
+                for box in all_bboxes[1:]:
+                    iou = calculate_iou(current_box, box)
+                    
+                    if iou > 0.3:  # Threshold IoU untuk penggabungan
+                        # Gabungkan box
+                        x1, y1, w1, h1 = current_box
+                        x2, y2, w2, h2 = box
+                        x = min(x1, x2)
+                        y = min(y1, y2)
+                        w = max(x1 + w1, x2 + w2) - x
+                        h = max(y1 + h1, y2 + h2) - y
+                        current_box = (x, y, w, h)
+                    else:
+                        merged_bboxes.append(current_box)
+                        current_box = box
+                    
+                # Tambahkan box terakhir
+                merged_bboxes.append(current_box)
             
-            print(f"Ditemukan {len(bboxes)} kandidat karakter setelah filter")
-            return bboxes
+            # 5. Jika masih tidak ada karakter yang terdeteksi, coba metode yang lebih agresif
+            if not merged_bboxes:
+                # Coba dengan threshold adaptif dan parameter yang lebih longgar
+                self.preprocessor.set_image(binary_image)
+                if len(binary_image.shape) == 3:
+                    self.preprocessor.grayscale()
+                
+                # Terapkan gaussian blur untuk mengurangi noise
+                self.preprocessor.gaussian_blur(kernel_size=5, sigma=0.0)
+                blurred = self.preprocessor.get_processed_image()
+                
+                # Gunakan cv2 untuk adaptiveThreshold yang lebih agresif (tidak diimplementasikan secara manual)
+                binary_adaptive = cv2.adaptiveThreshold(
+                    blurred, 255, cv2.ADAPTIVE_THRESH_MEAN_C, 
+                    cv2.THRESH_BINARY_INV, 15, 5)
+                
+                # Terapkan morphological operations yang lebih agresif
+                self.preprocessor.set_image(binary_adaptive)
+                self.preprocessor.morphological_closing(kernel_size=(5, 5))
+                binary_adaptive = self.preprocessor.get_processed_image()
+                
+                # Temukan kontur lagi
+                contours, _ = cv2.findContours(binary_adaptive, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                
+                for contour in contours:
+                    x, y, w, h = cv2.boundingRect(contour)
+                    area = cv2.contourArea(contour)
+                    aspect_ratio = w / h if h > 0 else 0
+                    
+                    # Filter dengan kriteria yang lebih longgar
+                    if (area >= 20 and  # Lebih kecil dari sebelumnya
+                        5 <= w <= 200 and  # Lebih kecil dari sebelumnya
+                        8 <= h <= 200 and  # Lebih kecil dari sebelumnya
+                        0.1 <= aspect_ratio <= 5.0):  # Lebih longgar
+                        
+                        merged_bboxes.append((x, y, w, h))
+            
+            # 6. Urutkan bboxes dari kiri ke kanan untuk urutan baca yang benar
+            merged_bboxes.sort(key=lambda bbox: bbox[0])
+            
+            print(f"Ditemukan {len(merged_bboxes)} kandidat karakter setelah filter")
+            return merged_bboxes
             
         except Exception as e:
             print(f"Kesalahan pada segmentasi karakter: {e}")
@@ -820,8 +714,147 @@ class HurufinMainWindow(QMainWindow):
         except Exception as e:
             error_msg = f"Error saat reset: {str(e)}"
             print(f"Error pada reset ML processing: {error_msg}")
-            QMessageBox.warning(self, "Peringatan", f"Reset tidak sepenuhnya berhasil:\n{error_msg}")
+            QMessageBox.warning(self, "Peringatan", f"Reset tidak sepenuhnya berhasil:\n{error_msg}")    # ================================
+    # OCR Tesseract 
+    # ================================    
+    # 
+    def perform_ocr_tesseract(self):
+        """
+        Melakukan pipeline lengkap OCR Tesseract: pra-pemrosesan, operasi morfologi, dan ekstraksi teks.
+        Implementasi workflow OCR dengan penanganan kesalahan di setiap tahap.
+        
+        Pipeline:
+        1. Validasi keberadaan gambar
+        2. Pra-pemrosesan (grayscale, median blur, contrast stretching)
+        3. Operasi morfologi (thresholding Otsu dan morphological opening)
+        4. Ekstraksi teks OCR dengan deteksi bounding box
+        5. Tampilkan hasil teks dan visualisasi bounding box
+        """
+        # Validasi keberadaan gambar input
+        if self.current_image is None:
+            QMessageBox.warning(
+                self, 
+                "Peringatan", 
+                "Silakan muat gambar terlebih dahulu sebelum melakukan OCR!"
+            )
+            return
 
-    # ================================
-    # FUNGSI HELPER YANG SUDAH ADA
-    # ================================
+        try:
+            print("=" * 60)
+            print("MEMULAI PROSES OCR TESSERACT")
+            print("=" * 60)
+            
+            # Tahap 1: Pra-pemrosesan
+            print("Tahap 1: Menerapkan pipeline pra-pemrosesan...")
+            processed_image = self.preprocessor.preprocess_pipeline()
+            
+            if processed_image is None:
+                QMessageBox.warning(
+                    self, 
+                    "Kesalahan Pra-pemrosesan", 
+                    "Pra-pemrosesan gambar gagal! Periksa kualitas gambar input."
+                )
+                return
+                
+            # Tampilkan hasil pra-pemrosesan
+            self.display_image(processed_image, self.display_preprocessing)
+            print("✓ Pra-pemrosesan berhasil (grayscale, median blur, contrast stretching)")
+
+            # Tahap 2: Operasi Morfologi
+            print("\nTahap 2: Menerapkan operasi morfologi...")
+            
+            # Terapkan thresholding Otsu untuk mendapatkan gambar biner
+            try:
+                binary_image = self.preprocessor.otsu_threshold()
+                print("✓ Thresholding Otsu berhasil diterapkan")
+            except Exception as morph_error:
+                QMessageBox.critical(
+                    self, 
+                    "Kesalahan Operasi Morfologi",
+                    f"Gagal menerapkan thresholding Otsu: {str(morph_error)}"
+                )
+                return
+            
+            # Terapkan morphological opening untuk menghilangkan noise kecil
+            try:
+                final_image = self.preprocessor.morphological_opening()
+                if final_image is None:
+                    raise ValueError("Hasil operasi morphological opening kosong")
+                print("✓ Morphological opening berhasil diterapkan")
+            except Exception as morph_error:
+                QMessageBox.critical(
+                    self, 
+                    "Kesalahan Operasi Morfologi",
+                    f"Gagal menerapkan morphological opening: {str(morph_error)}"
+                )
+                return
+
+            # Tahap 3: Lakukan OCR dengan Tesseract
+            print("\nTahap 3: Melakukan OCR dengan Tesseract...")
+            try:
+                # Gunakan hasil operasi morfologi sebagai input untuk OCR
+                result = self.ocr_processor.process_image(final_image, draw_boxes=True)
+                
+                if not result or 'text' not in result:
+                    raise ValueError("Hasil OCR tidak valid")
+                    
+                print("✓ OCR Tesseract berhasil dijalankan")
+            except Exception as ocr_error:
+                QMessageBox.critical(
+                    self, 
+                    "Kesalahan OCR", 
+                    f"Proses OCR Tesseract gagal: {str(ocr_error)}\n\n"
+                    f"Pastikan Tesseract OCR terinstal dengan benar."
+                )
+                return
+            
+            # Tahap 4: Tampilkan hasil
+            extracted_text = result['text']
+            
+            # Update text browser dengan hasil OCR
+            if hasattr(self, 'textBrowser'):
+                self.textBrowser.setText(extracted_text)
+                print("✓ Hasil teks OCR ditampilkan di text browser")
+            
+            # Tampilkan gambar dengan bounding box
+            if 'image_with_boxes' in result:
+                self.display_image(result['image_with_boxes'], self.display_ekstraksi)
+                print("✓ Visualisasi bounding box karakter ditampilkan")
+            else:
+                # Jika tidak ada bounding box, tampilkan gambar akhir tanpa box
+                self.display_image(final_image, self.display_ekstraksi)
+                print("⚠ Tidak ada bounding box karakter yang terdeteksi")
+            
+            # Log hasil OCR
+            print("\nHASIL OCR TESSERACT:")
+            print("-" * 60)
+            print(f"Teks yang diekstrak: \"{extracted_text}\"")
+            print(f"Jumlah karakter yang terdeteksi: {len(result.get('boxes', []))}")
+            print("-" * 60)
+            
+            # Tampilkan pesan sukses jika ada teks yang diekstrak
+            if extracted_text.strip():
+                QMessageBox.information(
+                    self,
+                    "OCR Berhasil",
+                    f"Berhasil mengekstrak teks dari gambar!\n\n"
+                    f"Ditemukan {len(result.get('boxes', []))} karakter."
+                )
+            else:
+                QMessageBox.information(
+                    self,
+                    "OCR Selesai",
+                    "Proses OCR selesai, namun tidak ditemukan teks.\n\n"
+                    "Coba sesuaikan gambar atau parameter pra-pemrosesan."
+                )
+
+        except Exception as e:
+            # Penanganan kesalahan umum
+            error_message = f"Error saat melakukan OCR: {str(e)}"
+            print(f"ERROR: {error_message}")
+            QMessageBox.critical(
+                self, 
+                "Kesalahan OCR", 
+                f"{error_message}\n\n"
+                f"Detail: {type(e).__name__}"
+            )
