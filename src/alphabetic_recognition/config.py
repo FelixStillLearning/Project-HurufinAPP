@@ -6,7 +6,6 @@ Centralized configuration for all paths, parameters, and settings
 used in alphabetic recognition system.
 """
 
-import os
 import cv2
 from pathlib import Path
 
@@ -43,10 +42,6 @@ ANNOTATIONS_PATH.mkdir(exist_ok=True)
 CHAR_IMAGE_SIZE = (28, 28)  # Standard size for character recognition
 CHAR_WIDTH, CHAR_HEIGHT = CHAR_IMAGE_SIZE
 
-# Morphological operations
-MORPH_KERNEL_SIZE = (3, 3)
-MORPH_ITERATIONS = 1
-
 # Thresholding parameters
 THRESHOLD_TYPE = cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
 THRESHOLD_MAX_VALUE = 255
@@ -55,6 +50,14 @@ THRESHOLD_MAX_VALUE = 255
 GAUSSIAN_KERNEL_SIZE = (3, 3)
 GAUSSIAN_SIGMA_X = 1
 GAUSSIAN_SIGMA_Y = 1
+
+# Noise reduction parameters
+MEDIAN_FILTER_SIZE = 3          # Standard 3x3 median filter
+
+# Morphological operations - optimized for character cleanup
+MORPH_OPEN_KERNEL = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+MORPH_CLOSE_KERNEL = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+MORPH_ITERATIONS = 1            # Single iteration to preserve character details
 
 # ============================================================================
 # OPTIMIZED FEATURE EXTRACTION PARAMETERS
@@ -86,56 +89,23 @@ FEATURE_WEIGHTS = {
     'crossing': 0.8             # Less critical but still useful
 }
 
-# Contour approximation parameters
-CONTOUR_EPSILON_FACTOR = 0.02   # Reduced for more precise contours (2% of perimeter)
-
 # ============================================================================
-# PREPROCESSING OPTIMIZATION PARAMETERS
+# CONTOUR FILTERING PARAMETERS (used in validation)
 # ============================================================================
 
-# Noise reduction parameters
-GAUSSIAN_SIGMA_FACTOR = 0.5     # Conservative sigma for noise reduction
-MEDIAN_FILTER_SIZE = 3          # Standard 3x3 median filter
-
-# Morphological operations - optimized for character cleanup
-MORPH_OPEN_KERNEL = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
-MORPH_CLOSE_KERNEL = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-MORPH_ITERATIONS = 1            # Single iteration to preserve character details
-
-# Adaptive parameters
-ADAPTIVE_BLOCK_SIZE = 11        # Block size for adaptive thresholding
-ADAPTIVE_C = 2                  # Constant subtracted from mean
+# Area filters - used in validate_config()
+MIN_CONTOUR_AREA = 30           # Minimum contour area for validation
+# Aspect ratio filters - used in validate_config()
+MIN_ASPECT_RATIO = 0.1          # Minimum aspect ratio for validation
+MAX_ASPECT_RATIO = 4.0          # Maximum aspect ratio for validation
 
 # ============================================================================
-# ENHANCED CONTOUR FILTERING PARAMETERS
-# ============================================================================
-
-# Area filters - optimized for character detection
-MIN_CONTOUR_AREA = 30           # Further reduced minimum for smaller characters
-MAX_CONTOUR_AREA_RATIO = 0.4    # Increased maximum to 40% of image area
-
-# Aspect ratio filters - refined for character shapes
-MIN_ASPECT_RATIO = 0.1          # Allow thin characters like 'I', '1'
-MAX_ASPECT_RATIO = 4.0          # Reduced for more reasonable character shapes
-
-# Bounding box filters - refined dimensions
-MIN_BBOX_WIDTH = 8              # Minimum for small characters
-MIN_BBOX_HEIGHT = 12            # Maintain readability
-MAX_BBOX_WIDTH = 200            # Prevent oversized detections
-MAX_BBOX_HEIGHT = 200           # Prevent oversized detections
-
-# Character validation parameters
-MIN_CHAR_PIXELS = 20            # Minimum foreground pixels in character
-MAX_NOISE_RATIO = 0.1           # Maximum noise tolerance
-
-# ============================================================================
-# ENHANCED CLASSIFICATION PARAMETERS
+# CLASSIFICATION PARAMETERS
 # ============================================================================
 
 # Confidence thresholds
 MIN_CONFIDENCE_THRESHOLD = 0.15  # Reduced minimum confidence for more detections
-HIGH_CONFIDENCE_THRESHOLD = 0.7  # High confidence threshold  
-UNCERTAIN_THRESHOLD = 0.4        # Threshold for uncertain predictions
+HIGH_CONFIDENCE_THRESHOLD = 0.7  # High confidence threshold
 
 # Model parameters
 SVM_C_PARAM = 1.0               # SVM regularization parameter
@@ -148,9 +118,6 @@ RF_MIN_SAMPLES_LEAF = 2         # Minimum samples per leaf
 # Cross-validation parameters
 CV_FOLDS = 5                    # Number of folds for cross-validation
 RANDOM_STATE = 42               # Fixed random state for reproducibility
-
-# IoU threshold for annotation matching during training
-IOU_THRESHOLD = 0.5
 
 # ============================================================================
 # PERFORMANCE OPTIMIZATION PARAMETERS
@@ -172,80 +139,7 @@ CONTOUR_RETRIEVAL = cv2.RETR_EXTERNAL  # Only external contours
 CONTOUR_APPROXIMATION = cv2.CHAIN_APPROX_SIMPLE  # Compressed contours
 
 # ============================================================================
-# SUPPORTED CLASSES
-# ============================================================================
-
-# Character classes (A-Z, 0-9)
-ALPHABET_CLASSES = [chr(i) for i in range(ord('A'), ord('Z') + 1)]  # A-Z
-DIGIT_CLASSES = [str(i) for i in range(10)]  # 0-9
-ALL_CLASSES = ALPHABET_CLASSES + DIGIT_CLASSES
-
-# Default class mapping (will be updated from loaded model)
-CLASS_MAPPING = {i: cls for i, cls in enumerate(ALL_CLASSES)}
-
-# ============================================================================
-# ENHANCED VISUALIZATION PARAMETERS
-# ============================================================================
-
-# Bounding box visualization
-BBOX_COLOR = (0, 255, 0)        # Green color for bounding boxes
-BBOX_THICKNESS = 2              # Bounding box line thickness
-BBOX_UNCERTAIN_COLOR = (0, 165, 255)  # Orange for uncertain predictions
-BBOX_HIGH_CONF_COLOR = (0, 255, 0)    # Green for high confidence
-
-# Label visualization
-LABEL_FONT = cv2.FONT_HERSHEY_SIMPLEX
-LABEL_FONT_SCALE = 0.6
-LABEL_THICKNESS = 1
-LABEL_COLOR = (0, 0, 0)         # Black text
-LABEL_BG_COLOR = (255, 255, 255)  # White background for better contrast
-LABEL_UNCERTAIN_BG = (200, 200, 200)  # Gray background for uncertain
-
-# Label positioning
-LABEL_OFFSET_X = 5              # X offset for label text
-LABEL_OFFSET_Y = 5              # Y offset for label background
-LABEL_PADDING = 3               # Padding around label text
-
-# Debug visualization
-DEBUG_MODE = False              # Enable debug visualizations
-SHOW_CONTOURS = False           # Show detected contours
-SHOW_PREPROCESSING = False      # Show preprocessing steps
-SAVE_DEBUG_IMAGES = False       # Save debug images to disk
-
-# ============================================================================
-# ERROR HANDLING CONFIGURATION
-# ============================================================================
-
-# Retry parameters
-MAX_RETRIES = 3                 # Maximum retry attempts
-RETRY_DELAY = 0.1               # Delay between retries (seconds)
-
-# Fallback options
-USE_FALLBACK_PREPROCESSING = True   # Use OpenCV fallbacks if PCD modules fail
-FALLBACK_CONFIDENCE = 0.1           # Default confidence for fallback predictions
-DEFAULT_CHARACTER = '?'             # Default character for failed predictions
-
-# Logging configuration
-LOG_LEVEL = 'INFO'              # Logging level: DEBUG, INFO, WARNING, ERROR
-LOG_PREDICTIONS = False         # Log all predictions
-LOG_ERRORS = True               # Log errors and exceptions
-LOG_PERFORMANCE = False         # Log performance metrics
-
-# ============================================================================
-# FILE EXTENSION SUPPORT
-# ============================================================================
-
-# Supported image formats
-SUPPORTED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif']
-SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.avi', '.mov', '.mkv']
-
-# Default file naming
-DEFAULT_MODEL_NAME = 'alphabetic_classifier_model.pkl'
-DEFAULT_CONFIG_NAME = 'feature_extractor_config.pkl'
-DEFAULT_BACKUP_SUFFIX = '_backup'
-
-# ============================================================================
-# ADVANCED VALIDATION FUNCTIONS
+# CONFIGURATION FUNCTIONS
 # ============================================================================
 
 def validate_config():
@@ -280,15 +174,12 @@ def validate_config():
     
     if MIN_ASPECT_RATIO >= MAX_ASPECT_RATIO:
         warnings.warn("MIN_ASPECT_RATIO should be less than MAX_ASPECT_RATIO", UserWarning)
-      # Validate confidence thresholds
+    
+    # Validate confidence thresholds
     if not (0 <= MIN_CONFIDENCE_THRESHOLD <= 1):
         warnings.warn("MIN_CONFIDENCE_THRESHOLD should be between 0 and 1", UserWarning)
     
     print("Configuration validation complete")
-
-def get_optimized_hog_params():
-    """Get optimized HOG parameters for the current image size."""
-    return HOG_PARAMS.copy()
 
 def get_preprocessing_config():
     """Get preprocessing configuration dictionary."""

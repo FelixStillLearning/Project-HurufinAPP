@@ -176,3 +176,5 @@ data/
 # Specific to this project
 # Remove absolute paths and keep only relative patterns
 # dataset/english/  # commented out - using general dataset/ pattern above
+
+assets/
